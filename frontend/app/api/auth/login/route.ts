@@ -1,7 +1,6 @@
-// frontend/app/api/auth/login/route.ts
 import { NextResponse } from "next/server";
 import axios from "axios";
-import { cookies, ReadonlyRequestCookies } from "next/headers"; // MODIFIED: Import ReadonlyRequestCookies
+import { cookies } from "next/headers";
 
 const GO_BACKEND_URL = process.env.GO_BACKEND_URL;
 
@@ -28,17 +27,8 @@ export async function POST(request: Request) {
     const goResponse = await axios.post(`${GO_BACKEND_URL}/login`, body);
 
     if (goResponse.data.token) {
-      // MODIFIED: Explicitly type cookieStore
-      const cookieStore: ReadonlyRequestCookies = cookies();
-
-      // Now check if 'cookieStore.set' still shows an error.
-      // If 'set' is not part of ReadonlyRequestCookies, we have a different problem.
-      // However, the standard API also allows setting on the response via cookies() in Route Handlers.
-      // Let's try the direct response manipulation for setting cookies in Route Handlers,
-      // as this is also a valid and common pattern.
-
+      // Create the response object first
       const response = NextResponse.json({
-        // Create the response object first
         success: true,
         message: goResponse.data.message || "Logged in successfully",
       });
@@ -49,7 +39,7 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === "production",
         path: "/",
         sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7,
+        maxAge: 60 * 60 * 24 * 7, // 7 days
       });
 
       return response; // Return the modified response
