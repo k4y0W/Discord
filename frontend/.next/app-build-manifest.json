@@ -16,6 +16,11 @@
       "static/chunks/main-app.js",
       "static/chunks/app/home/page.js"
     ],
+    "/home/channels/[channelId]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/home/channels/[channelId]/page.js"
+    ],
     "/(auth)/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
