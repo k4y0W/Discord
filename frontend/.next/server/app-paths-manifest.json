@@ -1,4 +1,5 @@
 {
+  "/(auth)/login/page": "app/(auth)/login/page.js",
   "/home/page": "app/home/page.js",
   "/api/chat/channels/[channelId]/messages/route": "app/api/chat/channels/[channelId]/messages/route.js",
   "/home/channels/[channelId]/page": "app/home/channels/[channelId]/page.js"
