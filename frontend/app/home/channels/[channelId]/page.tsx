@@ -155,8 +155,8 @@ export default async function ChannelPage({
   // Upewnij się, że ServerSidebar poprawnie obsługuje activeChannelId jako string lub number
   // currentChannel.ID jest number, channelId z params jest string.
   // Jeśli ServerSidebar oczekuje stringa:
-  const activeChannelIdForSidebar = currentChannel.ID.toString();
-
+  const activeChannelIdForSidebar = currentChannel.ID.toString(); // String
+  const activeServerIdFromUrl = searchParams?.serverId || null; // String or null
   return (
     <div className="flex h-screen bg-gray-950 text-white">
       <div className="hidden md:flex w-auto flex-shrink-0">
@@ -164,8 +164,8 @@ export default async function ChannelPage({
         {/* w-auto dla paska serwerów */}
         <ServerSidebar
           userData={userData}
-          activeChannelId={activeChannelIdForSidebar} // ID aktywnego kanału
-          activeServerId={activeServerId} // ID aktywnego serwera
+          activeChannelId={activeChannelIdForSidebar}
+          activeServerId={activeServerIdFromUrl}
         />
       </div>
 

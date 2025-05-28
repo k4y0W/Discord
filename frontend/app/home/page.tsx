@@ -1,97 +1,45 @@
 // app/home/page.tsx
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import axios from "axios";
+import axios from "axios"; // Potrzebne dla getUserData
+
 // Upewnij się, że ścieżki są poprawne dla Twojej struktury
-import { UserData, Channel, Server } from "../../lib/types"; // Dodano Server, jeśli będziesz go tu potrzebować
-import ServerSidebar from "../../../components/server/ServerSidebar";
-// import CreateServerForm from "../../../components/server/CreateServerForm"; // Odkomentuj, jeśli chcesz go tu używać
+import { UserData } from "../../lib/types"; // Zakładając, że lib jest na poziomie głównym projektu
+import ServerSidebar from "../../../components/server/ServerSidebar"; // Zakładając, że components jest na poziomie głównym
 
 // Użyj NEXT_PUBLIC_ jeśli ta zmienna ma być dostępna też po stronie klienta w przyszłości
+// lub jeśli używasz jej w funkcjach, które mogą być wywoływane z różnych kontekstów.
 const GO_BACKEND_URL =
   process.env.NEXT_PUBLIC_GO_BACKEND_URL || process.env.GO_BACKEND_URL;
 
-// Zmodyfikowana funkcja, aby potencjalnie przyjmowała serverId
-async function getAvailableChannels(
-  token: string,
-  serverId?: string | null
-): Promise<Channel[]> {
-  if (!GO_BACKEND_URL) {
-    console.error("GO_BACKEND_URL is not set for getAvailableChannels");
-    return [];
-  }
-  if (!token) {
-    console.error("No token for getAvailableChannels");
-    return [];
-  }
-
-  let apiUrl = `${GO_BACKEND_URL}/api/channels`; // Domyślnie pobiera wszystkie kanały (jak wcześniej)
-
-  if (serverId) {
-    // Jeśli serverId jest podane, zmień URL, aby pobrać kanały dla tego serwera
-    // To jest endpoint, który musisz stworzyć w Go: GET /api/servers/{serverId}/channels
-    apiUrl = `${GO_BACKEND_URL}/api/servers/${serverId}/channels`;
-    console.log(`Fetching channels for serverId: ${serverId} from ${apiUrl}`);
-  } else {
-    console.log(`Fetching all available channels from ${apiUrl}`);
-  }
-
-  try {
-    // Backend dla /api/servers/{serverId}/channels powinien zwracać { channels: Channel[] }
-    // lub bezpośrednio Channel[] - dostosuj typ odpowiedzi axiosa
-    const response = await axios.get<{ channels: Channel[] }>(apiUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (response.data && Array.isArray(response.data.channels)) {
-      return response.data.channels;
-    } else if (Array.isArray(response.data)) {
-      // Jeśli API zwraca bezpośrednio tablicę kanałów
-      // To jest bardziej prawdopodobne dla endpointu /api/servers/{serverId}/channels
-      // Sprawdź, co faktycznie zwraca Twoje API Go
-      // @ts-ignore // Tymczasowe ignorowanie błędu typu, jeśli odpowiedź to Channel[]
-      return response.data as Channel[];
-    } else {
-      console.error(
-        "Unexpected response structure from channels API:",
-        response.data
-      );
-      return [];
-    }
-  } catch (error: any) {
-    console.error(
-      `Failed to fetch channels (serverId: ${serverId || "all"}):`,
-      error.response?.data?.error || error.message
-    );
-    return [];
-  }
-}
-
+// Funkcja do pobierania danych użytkownika (można ją przenieść do lib/services/userService.ts)
 async function getUserData(token: string): Promise<UserData | null> {
   if (!GO_BACKEND_URL) {
-    console.error("GO_BACKEND_URL is not set for getUserData");
+    console.error("[HomePage] GO_BACKEND_URL is not set for getUserData");
     return null;
   }
   try {
     const response = await axios.get<UserData>(`${GO_BACKEND_URL}/home`, {
+      // Endpoint Go do pobierania danych użytkownika
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
   } catch (error: any) {
     console.error(
-      "Failed to fetch user data:",
-      error.response?.data || error.message
+      "[HomePage] Failed to fetch user data:",
+      error.response?.data?.error || error.message
     );
     return null;
   }
 }
 
-// Dodajemy searchParams do propsów strony, aby odczytać parametry z URL
+// Interfejs propsów dla strony, aby mogła odbierać searchParams
 interface HomePageProps {
   searchParams?: {
-    serverId?: string; // Oczekujemy serverId jako string
-    // Możesz dodać inne searchParams, jeśli będą potrzebne
+    serverId?: string;
+    channelId?: string;
+    error?: string;
+    channelIdAttempt?: string; // <<< DODAJ TO POLE
   };
 }
 
@@ -106,7 +54,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const userData = await getUserData(token);
 
   if (!userData) {
+    // Jeśli nie udało się pobrać danych użytkownika (np. token wygasł po stronie backendu)
     cookieStore.set("auth_token", "", {
+      // Wyczyść niepoprawny token
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -117,82 +67,76 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     return null;
   }
 
-  // Odczytaj activeServerId z URL (searchParams)
-  const activeServerId = searchParams?.serverId || null; // Będzie stringiem lub null
+  // Odczytaj activeServerId i activeChannelId z URL (searchParams)
+  const activeServerId = searchParams?.serverId || null;
+  const activeChannelIdQuery = searchParams?.channelId; // Może być stringiem lub undefined
+  const activeChannelId = Array.isArray(activeChannelIdQuery)
+    ? activeChannelIdQuery[0]
+    : activeChannelIdQuery || null;
 
-  // Pobierz kanały, przekazując activeServerId
-  // Funkcja getAvailableChannels powinna teraz używać tego ID do pobrania odpowiednich kanałów
-  const channelsForDisplay = await getAvailableChannels(token, activeServerId);
+  // Komunikat o błędzie z URL (np. po nieudanym przekierowaniu z ChannelPage)
+  const errorMessage = searchParams?.error;
 
   return (
     <div className="flex h-screen bg-gray-950 text-white">
-      <div className="hidden md:flex w-auto flex-shrink-0">
+      <div className="flex flex-shrink-0">
         {" "}
-        {/* w-auto aby sidebar sam zarządzał szerokością */}
+        {/* Sidebar sam zarządza swoją szerokością */}
         <ServerSidebar
           userData={userData}
-          activeChannelId={null} // Na stronie /home nie ma aktywnego kanału czatu
-          activeServerId={activeServerId} // Przekaż odczytane activeServerId
+          activeChannelId={activeChannelId} // Przekazujemy ID aktywnego kanału (jeśli jest w URL)
+          activeServerId={activeServerId} // Przekazujemy ID aktywnego serwera
         />
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 overflow-hidden">
-        <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-lg text-center">
-          {" "}
-          {/* Zwiększono max-w-lg */}
-          <h1 className="text-3xl font-bold mb-6 text-white">
-            Welcome, {userData.username}!
-          </h1>
-          {/* Możesz tu dodać CreateServerForm, jeśli chcesz go mieć na tej stronie */}
-          {/* <div className="mb-6"> <CreateServerForm /> </div> */}
-          {activeServerId ? ( // Jeśli serwer jest wybrany, pokaż jego kanały
-            <>
-              <p className="text-gray-300 mb-4">
-                Kanały dla wybranego serwera: {/* TODO: Pokaż nazwę serwera */}
-              </p>
-              {channelsForDisplay.length > 0 ? (
-                <ul className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
-                  {" "}
-                  {/* Dodano scroll dla listy kanałów */}
-                  {channelsForDisplay.map((channel) => (
-                    <li key={channel.ID}>
-                      <Link
-                        // Link do kanału powinien teraz uwzględniać serverId, jeśli Twoja struktura URL tego wymaga
-                        // Na razie zakładamy, że /home/channels/:channelId jest unikalne globalnie
-                        // lub że ServerSidebar wie, do którego serwera należy aktywny kanał
-                        href={`/home/channels/${channel.ID}?serverId=${activeServerId}`} // Przekazujemy serverId dalej
-                        className="block w-full px-6 py-3 text-lg font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        # {channel.Name}
-                        {channel.Type === "voice" && (
-                          <span className="ml-2 text-xs opacity-75">
-                            (Voice)
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-400">
-                  Brak kanałów na tym serwerze lub wybierz inny serwer.
-                </p>
-              )}
-            </>
-          ) : (
-            // Jeśli żaden serwer nie jest wybrany
-            <p className="text-gray-300 mb-8">
-              Wybierz serwer z panelu po lewej, aby zobaczyć jego kanały.
-            </p>
+      {/* Główna treść strony /home */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-800">
+        <div className="text-center">
+          {errorMessage && (
+            <div className="mb-4 p-3 bg-red-500 text-white rounded-md">
+              {errorMessage === "channel_not_found" &&
+                `Nie znaleziono kanału (ID próby: ${
+                  searchParams?.channelIdAttempt || "nieznane"
+                }).`}
+              {/* Dodaj inne obsługiwane komunikaty o błędach */}
+            </div>
           )}
-          <div className="mt-10">
-            <h3 className="text-lg font-semibold text-gray-200">
-              Your User Data:
-            </h3>
-            <pre className="bg-gray-700 p-3 rounded mt-2 text-xs text-left overflow-x-auto text-gray-100">
-              {JSON.stringify(userData, null, 2)}
-            </pre>
-          </div>
+
+          {!activeServerId && (
+            <>
+              <h1 className="text-4xl font-bold mb-4 text-white">
+                Witaj, {userData.username}!
+              </h1>
+              <p className="text-xl text-gray-300">
+                Wybierz serwer z panelu po lewej, aby rozpocząć.
+              </p>
+              <p className="text-gray-400 mt-2">
+                Możesz także utworzyć nowy serwer, klikając przycisk "+" w
+                panelu serwerów.
+              </p>
+            </>
+          )}
+
+          {activeServerId && !activeChannelId && (
+            <>
+              <h1 className="text-4xl font-bold mb-4 text-white">
+                Serwer wybrany!{" "}
+                {/* TODO: Można tu dodać nazwę aktywnego serwera */}
+              </h1>
+              <p className="text-xl text-gray-300">
+                Wybierz kanał z listy, aby dołączyć do rozmowy.
+              </p>
+            </>
+          )}
+
+          {/* 
+            Jeśli URL to /home/channels/[channelId], to ta strona (/home/page.tsx) nie będzie renderowana,
+            tylko strona app/home/channels/[channelId]/page.tsx.
+            Dlatego nie ma potrzeby tutaj renderować listy kanałów dla aktywnego serwera,
+            bo ServerSidebar już to robi i nawiguje do strony konkretnego kanału.
+            Ta główna sekcja na /home może służyć jako miejsce powitalne lub do wyświetlania
+            jakichś ogólnych informacji/aktywności, jeśli nie jest wybrany konkretny kanał.
+          */}
         </div>
       </main>
     </div>

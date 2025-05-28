@@ -1,8 +1,5 @@
 {
   "/home/page": "app/home/page.js",
-  "/home/channels/[channelId]/page": "app/home/channels/[channelId]/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(auth)/register/page": "app/(auth)/register/page.js",
-  "/api/auth/register/route": "app/api/auth/register/route.js",
-  "/api/auth/login/route": "app/api/auth/login/route.js"
+  "/api/chat/channels/[channelId]/messages/route": "app/api/chat/channels/[channelId]/messages/route.js",
+  "/home/channels/[channelId]/page": "app/home/channels/[channelId]/page.js"
 }

@@ -326,7 +326,7 @@ func getChannelsForServerHandler(c *gin.Context) {
 	}
 
 	log.Printf("Successfully fetched %d channels for server ID %d", len(channelsToReturn), serverId)
-	c.JSON(http.StatusOK, gin.H{"channels": channelsToReturn}) // Zwróć obiekt z kluczem "channels"
+	c.JSON(http.StatusOK, gin.H{"channels": channelsToReturn}) 
 }
 
 func getChannelDetailsHandler(c *gin.Context) {
@@ -460,8 +460,7 @@ func postMessageHandler(c *gin.Context) {
     }
 
     log.Printf("User %d created message in channel %d", authorID, channelId)
-    // TODO: Tutaj w przyszłości będzie miejsce na wysłanie tej wiadomości przez WebSockets do innych klientów
-
+	
     c.JSON(http.StatusCreated, gin.H{
         "message": "Message created successfully",
         "createdMessage": newMessage, // Zwróć nowo utworzoną wiadomość z danymi autora
